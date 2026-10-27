@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  SUSPENDED
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id           String          @id @default(uuid())
+  email        String          @unique
+  password     String
+  name         String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  memberships  ProjectMember[]
+}
+
+model Project {
+  id            String          @id @default(uuid())
+  name          String
+  slug          String          @unique
+  description   String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  members       ProjectMember[]
+  conversations Conversation[]
+  executions    AIExecution[]
+  files         ProjectFile[]
+  students      Student[]
+}
+
+model ProjectMember {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  role      String   @default("MEMBER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model Conversation {
+  id        String    @id @default(uuid())
+  projectId String
+  title     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages  Message[]
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  role           String
+  content        String
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model AIExecution {
+  id               String          @id @default(uuid())
+  projectId        String
+  agentType        String
+  status           ExecutionStatus @default(PENDING)
+  durationMs       Int?            @default(0)
+  promptTokens     Int?            @default(0)
+  completionTokens Int?            @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  project          Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ProjectFile {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  path      String
+  sizeBytes Int      @default(0)
+  mimeType  String?  @default("text/plain")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Student {
+  id           String        @id @default(uuid())
+  projectId    String
+  firstName    String
+  lastName     String
+  email        String        @unique
+  enrollmentNo String        @unique
+  course       String
+  status       StudentStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
