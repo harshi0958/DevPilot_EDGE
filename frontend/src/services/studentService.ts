@@ -1,8 +1,10 @@
 import { Student } from '../types/student';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 export class StudentService {
   static async getStudents(projectId: string): Promise<Student[]> {
-    const res = await fetch(`http://localhost:5000/api/projects/${projectId}/students`, {
+    const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/students`, {
       credentials: 'include',
     });
     const json = await res.json();
@@ -11,7 +13,7 @@ export class StudentService {
   }
 
   static async createStudent(projectId: string, data: any): Promise<Student> {
-    const res = await fetch(`http://localhost:5000/api/projects/${projectId}/students`, {
+    const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/students`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -23,7 +25,7 @@ export class StudentService {
   }
 
   static async updateStudent(projectId: string, id: string, data: any): Promise<Student> {
-    const res = await fetch(`http://localhost:5000/api/projects/${projectId}/students/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/students/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -35,7 +37,7 @@ export class StudentService {
   }
 
   static async deleteStudent(projectId: string, id: string): Promise<void> {
-    const res = await fetch(`http://localhost:5000/api/projects/${projectId}/students/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/students/${id}`, {
       method: 'DELETE',
       credentials: 'include',
     });
