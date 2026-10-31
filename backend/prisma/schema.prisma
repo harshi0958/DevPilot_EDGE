@@ -7,6 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  COMPLETED
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 enum StudentStatus {
   ACTIVE
   INACTIVE
@@ -14,104 +28,166 @@ enum StudentStatus {
   SUSPENDED
 }
 
-enum ExecutionStatus {
-  PENDING
-  RUNNING
-  COMPLETED
-  FAILED
+enum Role {
+  ADMIN
+  OWNER
+  MEMBER
+  VIEWER
 }
 
 model User {
-  id           String          @id @default(uuid())
-  email        String          @unique
-  password     String
-  name         String?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  memberships  ProjectMember[]
+  id        String          @id @default(uuid())
+  email     String          @unique
+  name      String?
+  password  String
+  role      Role            @default(MEMBER)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  members   ProjectMember[]
+  tasks     TaskItem[]
+  createdTasks Task[]       @relation("CreatedTasks")
+  assignedTasks Task[]      @relation("AssignedTasks")
+
+  @@map("users")
 }
 
 model Project {
-  id            String          @id @default(uuid())
-  name          String
-  slug          String          @unique
-  description   String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  members       ProjectMember[]
+  id          String          @id @default(uuid())
+  name        String
+  slug        String          @unique
+  description String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  members     ProjectMember[]
+  tasks       TaskItem[]
+  projectTasks Task[]
+  students    Student[]
+  aiExecutions AIExecution[]
+  projectFiles ProjectFile[]
   conversations Conversation[]
-  executions    AIExecution[]
-  files         ProjectFile[]
-  students      Student[]
+  notifications Notification[]
+
+  @@map("projects")
 }
 
 model ProjectMember {
   id        String   @id @default(uuid())
-  projectId String
-  userId    String
   role      String   @default("MEMBER")
+  userId    String
+  projectId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([projectId, userId])
+  @@unique([userId, projectId])
+  @@map("project_members")
 }
 
-model Conversation {
-  id        String    @id @default(uuid())
-  projectId String
-  title     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  messages  Message[]
+model TaskItem {
+  id          String       @id @default(uuid())
+  title       String       @db.VarChar(255)
+  description String?      @db.Text
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User         @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+  @@map("task_items")
 }
 
-model Message {
-  id             String       @id @default(uuid())
-  conversationId String
-  role           String
-  content        String
-  createdAt      DateTime     @default(now())
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+model Task {
+  id          String       @id @default(uuid())
+  title       String       @db.VarChar(255)
+  description String?      @db.Text
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User         @relation("CreatedTasks", fields: [createdById], references: [id], onDelete: Cascade)
+  assignedToId String?
+  assignedTo  User?        @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("tasks")
+}
+
+model Student {
+  id             String        @id @default(uuid())
+  projectId      String
+  firstName      String        @db.VarChar(100)
+  lastName       String        @db.VarChar(100)
+  email          String        @db.VarChar(255)
+  enrollmentNo   String        @db.VarChar(100)
+  course         String        @db.VarChar(100)
+  status         StudentStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  project        Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, email])
+  @@unique([projectId, enrollmentNo])
+  @@index([projectId])
+  @@map("students")
 }
 
 model AIExecution {
-  id               String          @id @default(uuid())
-  projectId        String
-  agentType        String
-  status           ExecutionStatus @default(PENDING)
-  durationMs       Int?            @default(0)
-  promptTokens     Int?            @default(0)
-  completionTokens Int?            @default(0)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  project          Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id             String   @id @default(uuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agentId        String
+  status         String   @default("COMPLETED")
+  promptTokens   Int      @default(0)
+  responseTokens Int      @default(0)
+  durationMs     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("ai_executions")
 }
 
 model ProjectFile {
   id        String   @id @default(uuid())
   projectId String
-  name      String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   path      String
-  sizeBytes Int      @default(0)
-  mimeType  String?  @default("text/plain")
+  content   String   @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_files")
 }
 
-model Student {
-  id           String        @id @default(uuid())
-  projectId    String
-  firstName    String
-  lastName     String
-  email        String        @unique
-  enrollmentNo String        @unique
-  course       String
-  status       StudentStatus @default(ACTIVE)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+model Conversation {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("conversations")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
 }
