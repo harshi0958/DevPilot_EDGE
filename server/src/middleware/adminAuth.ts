@@ -1,54 +1,33 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import prisma from '../lib/prisma';
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from './auth.middleware';
+import prisma from '../utils/prisma';
 
-interface JwtPayload {
-  userId: string;
-  role?: string;
-}
-
-export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    role: string;
-  };
-}
-
-export const requireAdmin = async (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const adminAuth = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const token = req.cookies?.auth_token || req.headers.authorization?.split(' ')[1];
+    const userId = req.user?.id;
+    const projectId = req.params.projectId;
 
-    if (!token) {
-      res.status(401).json({ error: 'Unauthorized: Authentication token missing' });
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
       return;
     }
 
-    const secret = process.env.JWT_SECRET || 'devpilot-secret-key';
-    const decoded = jwt.verify(token, secret) as JwtPayload;
+    if (!projectId) {
+      res.status(400).json({ success: false, message: 'Project ID required' });
+      return;
+    }
 
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: { id: true, email: true, role: true }
+    const member = await prisma.projectMember.findFirst({
+      where: { userId, projectId },
     });
 
-    if (!user) {
-      res.status(401).json({ error: 'Unauthorized: User not found' });
+    if (!member || (!['ADMIN', 'OWNer', 'OWNER'].includes(member.role))) {
+      res.status(403).json({ success: false, message: 'Forbidden: Admin access required' });
       return;
     }
 
-    if (user.role !== 'ADMIN') {
-      res.status(403).json({ error: 'Forbidden: Admin access required' });
-      return;
-    }
-
-    req.user = user;
     next();
-  } catch (error) {
-    res.status(401).json({ error: 'Unauthorized: Invalid token' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Server error' });
   }
 };
