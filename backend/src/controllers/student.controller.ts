@@ -1,8 +1,9 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthRequest } from '../middleware/auth.middleware';
 import { StudentService } from '../services/student.service';
 
 export class StudentController {
-  static async list(req: Request, res: Response) {
+  static async list(req: AuthRequest, res: Response) {
     try {
       const { projectId } = req.params;
       const students = await StudentService.getStudentsByProject(projectId);
@@ -12,7 +13,7 @@ export class StudentController {
     }
   }
 
-  static async getOne(req: Request, res: Response) {
+  static async getOne(req: AuthRequest, res: Response) {
     try {
       const { projectId, id } = req.params;
       const student = await StudentService.getStudentById(id, projectId);
@@ -25,7 +26,7 @@ export class StudentController {
     }
   }
 
-  static async create(req: Request, res: Response) {
+  static async create(req: AuthRequest, res: Response) {
     try {
       const { projectId } = req.params;
       const { firstName, lastName, email, enrollmentNo, course, status } = req.body;
@@ -49,7 +50,7 @@ export class StudentController {
     }
   }
 
-  static async update(req: Request, res: Response) {
+  static async update(req: AuthRequest, res: Response) {
     try {
       const { projectId, id } = req.params;
       const { firstName, lastName, email, enrollmentNo, course, status } = req.body;
@@ -69,7 +70,7 @@ export class StudentController {
     }
   }
 
-  static async remove(req: Request, res: Response) {
+  static async remove(req: AuthRequest, res: Response) {
     try {
       const { projectId, id } = req.params;
       await StudentService.deleteStudent(id, projectId);
