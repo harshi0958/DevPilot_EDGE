@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { downloadProjectZip } from '../controllers/download.controller';
 import { authenticateJWT } from '../middleware/auth.middleware';
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
-router.get('/projects/:projectId/download', authenticateJWT, downloadProjectZip);
+router.get('/', authenticateJWT, downloadProjectZip);
 
 export default router;
