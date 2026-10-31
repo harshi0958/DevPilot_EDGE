@@ -7,11 +7,12 @@ import { DashboardData } from '@/types/dashboard';
 async function getDashboardData(slug: string): Promise<DashboardData | null> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-    const res = await fetch(`${baseUrl}/api/dashboard/stats/${slug}`, {
+    const res = await fetch(`${baseUrl}/api/v1/projects/by-slug/${slug}/dashboard`, {
       cache: 'no-store',
     });
     if (!res.ok) return null;
-    return await res.json();
+    const json = await res.json();
+    return json.data;
   } catch (error) {
     return null;
   }
