@@ -1,4 +1,4 @@
-import { prisma } from '../lib/prisma';
+import prisma from '../utils/prisma';
 
 export interface DashboardSummaryData {
   metrics: {
@@ -18,124 +18,103 @@ export interface DashboardSummaryData {
 
 export class DashboardService {
   public static async getSummary(projectId: string): Promise<DashboardSummaryData> {
-    const [totalMembers, totalConversations, totalExecutions, successfulExecutions, totalFiles, filesAggregate, executionsByAgentRaw, durationAggregate] = await Promise.all([
+    const [totalMembers, totalTasks, completedTasks, totalStudents] = await Promise.all([
       prisma.projectMember.count({ where: { projectId } }),
-      prisma.conversation.count({ where: { projectId } }),
-      prisma.aIExecution.count({ where: { projectId } }),
-      prisma.aIExecution.count({ where: { projectId, status: 'COMPLETED' } }),
-      prisma.projectFile.count({ where: { projectId } }),
-      prisma.projectFile.aggregate({
-        where: { projectId },
-        _sum: { sizeBytes: true },
-      }),
-      prisma.aIExecution.groupBy({
-        by: ['agentType'],
-        where: { projectId },
-        _count: { agentType: true },
-      }),
-      prisma.aIExecution.aggregate({
-        where: { projectId },
-        _sum: { durationMs: true },
-      }),
+      prisma.taskItem.count({ where: { projectId } }),
+      prisma.taskItem.count({ where: { projectId, status: 'COMPLETED' } }),
+      prisma.student.count({ where: { projectId } }),
     ]);
 
-    const executionsByAgent: Record<string, number> = {};
-    executionsByAgentRaw.forEach((entry) => {
-      executionsByAgent[entry.agentType] = entry._count.agentType;
-    });
-
-    const successRate = totalExecutions > 0 ? Number(((successfulExecutions / totalExecutions) * 100).toFixed(1)) : 100;
-    const totalDurationSec = Math.round((durationAggregate._sum.durationMs || 0) / 1000);
+    const successRate = totalTasks > 0 ? Number(((completedTasks / totalTasks) * 100).toFixed(1)) : 100;
 
     return {
       metrics: {
         totalMembers,
-        totalConversations,
-        totalExecutions,
-        totalFiles,
+        totalConversations: 0,
+        totalExecutions: totalTasks,
+        totalFiles: totalStudents,
         successRate,
-        totalDurationSec,
+        totalDurationSec: 0,
       },
-      executionsByAgent,
+      executionsByAgent: {},
       storage: {
-        totalBytes: filesAggregate._sum.sizeBytes || 0,
-        fileCount: totalFiles,
+        totalBytes: 0,
+        fileCount: totalStudents,
       },
     };
   }
 
   public static async getRecentExecutions(projectId: string, limit: number = 10) {
-    return prisma.aIExecution.findMany({
+    return prisma.taskItem.findMany({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
       take: limit,
       select: {
         id: true,
-        agentType: true,
+        title: true,
         status: true,
-        promptTokens: true,
-        completionTokens: true,
-        durationMs: true,
+        priority: true,
+        dueDate: true,
         createdAt: true,
       },
     });
   }
 
   public static async getRecentFiles(projectId: string, limit: number = 6) {
-    return prisma.projectFile.findMany({
+    return prisma.student.findMany({
       where: { projectId },
       orderBy: { updatedAt: 'desc' },
       take: limit,
       select: {
         id: true,
-        name: true,
-        path: true,
-        sizeBytes: true,
-        mimeType: true,
+        firstName: true,
+        lastName: true,
+        enrollmentNo: true,
+        course: true,
         updatedAt: true,
       },
     });
   }
 
   public static async getActivity(projectId: string, limit: number = 10) {
-    const executions = await prisma.aIExecution.findMany({
-      where: { projectId },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      select: {
-        id: true,
-        agentType: true,
-        status: true,
-        createdAt: true,
-      },
-    });
-
-    const files = await prisma.projectFile.findMany({
+    const tasks = await prisma.taskItem.findMany({
       where: { projectId },
       orderBy: { updatedAt: 'desc' },
       take: limit,
       select: {
         id: true,
-        name: true,
-        path: true,
+        title: true,
+        status: true,
+        updatedAt: true,
+      },
+    });
+
+    const students = await prisma.student.findMany({
+      where: { projectId },
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
         updatedAt: true,
       },
     });
 
     const activityEvents = [
-      ...executions.map((e) => ({
-        id: `exec-${e.id}`,
-        type: 'EXECUTION',
-        title: `AI Task: ${e.agentType}`,
-        description: `Status: ${e.status}`,
-        timestamp: e.createdAt instanceof Date ? e.createdAt : new Date(e.createdAt),
+      ...tasks.map((t) => ({
+        id: `task-${t.id}`,
+        type: 'TASK',
+        title: `Task: ${t.title}`,
+        description: `Status: ${t.status}`,
+        timestamp: t.updatedAt instanceof Date ? t.updatedAt : new Date(t.updatedAt),
       })),
-      ...files.map((f) => ({
-        id: `file-${f.id}`,
-        type: 'FILE_UPDATE',
-        title: `File modified: ${f.name}`,
-        description: f.path,
-        timestamp: f.updatedAt instanceof Date ? f.updatedAt : new Date(f.updatedAt),
+      ...students.map((s) => ({
+        id: `student-${s.id}`,
+        type: 'STUDENT',
+        title: `Student: ${s.firstName} ${s.lastName}`,
+        description: `Student record updated`,
+        timestamp: s.updatedAt instanceof Date ? s.updatedAt : new Date(s.updatedAt),
       })),
     ];
 
